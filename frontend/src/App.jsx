@@ -126,10 +126,19 @@ export default function App() {
     if (data.chips !== undefined) { setChips(data.chips); loadLeaderboard(); }
   }
 
+  async function trackWager(amount) {
+    await fetch(`${API}/wager`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, amount, name: userName })
+    });
+  }
+
   function startGame() {
     if (bet === 0) return setMessage("Place a bet first!");
     if (chips < bet) return setMessage("Not enough chips!");
     setLastBet(bet);
+    trackWager(bet);
     const newDeck = createDeck();
     const p = [newDeck.pop(), newDeck.pop()];
     const d = [newDeck.pop(), newDeck.pop()];
@@ -268,7 +277,7 @@ export default function App() {
               <div style={{ color: "white", fontWeight: "bold", fontSize: 15 }}>{p.name}</div>
               <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>{p.wins} wins · {p.played} played</div>
             </div>
-            <div style={{ color: "#ffd700", fontWeight: 900, fontSize: 16 }}>🪙 {p.chips}</div>
+            <div style={{ color: "#ffd700", fontWeight: 900, fontSize: 16 }}>🎰 {p.total_wagered}</div>
           </div>
         ))}
       </div>
@@ -307,7 +316,7 @@ export default function App() {
               <div key={p.user_id} style={{...s.top3Card, borderColor: i === 0 ? "rgba(255,215,0,0.3)" : "rgba(255,255,255,0.06)"}}>
                 <div style={{ fontSize: 16 }}>{i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}</div>
                 <div style={{ color: "white", fontSize: 11, fontWeight: "bold", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
-                <div style={{ color: "#ffd700", fontSize: 12, fontWeight: "bold" }}>🪙 {p.chips}</div>
+                <div style={{ color: "#ffd700", fontSize: 12, fontWeight: "bold" }}>🎰 {p.total_wagered}</div>
               </div>
             ))}
           </div>

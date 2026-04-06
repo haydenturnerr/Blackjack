@@ -76,6 +76,16 @@ def deduct_chips(req: ChipsRequest):
     save_db(db)
     return {"chips": db[key]["chips"], "total_wagered": db[key]["total_wagered"]}
 
+@app.post("/wager")
+def track_wager(req: ChipsRequest):
+    db = load_db()
+    key = str(req.user_id)
+    if key not in db:
+        db[key] = {"name": req.name, "chips": 1000, "wins": 0, "played": 0, "total_wagered": 0, "stars_spent": 0}
+    db[key]["total_wagered"] = db[key].get("total_wagered", 0) + req.amount
+    save_db(db)
+    return {"total_wagered": db[key]["total_wagered"]}
+
 @app.post("/invoice")
 async def create_invoice(req: InvoiceRequest):
     chips = req.stars * 10
