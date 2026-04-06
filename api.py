@@ -29,7 +29,12 @@ def get_user(uid, name="Player"):
     db = load_db()
     key = str(uid)
     if key not in db:
-        db[key] = {"name": name, "chips": 1000, "wins": 0, "played": 0}
+        db[key] = {"name": name, "chips": 1000, "wins": 0, "played": 0, "total_wagered": 0, "total_won": 0, "stars_spent": 0}
+        save_db(db)
+    if "total_wagered" not in db[key]:
+        db[key]["total_wagered"] = 0
+        db[key]["total_won"] = 0
+        db[key]["stars_spent"] = 0
         save_db(db)
     return db[key]
 
@@ -66,8 +71,10 @@ def deduct_chips(req: ChipsRequest):
     if db[key]["chips"] < req.amount:
         return {"error": "Not enough chips"}
     db[key]["chips"] -= req.amount
+    db[key]["total_wagered"] = db[key].get("total_wagered", 0) + req.amount
+    db[key]["played"] = db[key].get("played", 0) + 1
     save_db(db)
-    return {"chips": db[key]["chips"]}
+    return {"chips": db[key]["chips"], "total_wagered": db[key]["total_wagered"]}
 
 @app.post("/invoice")
 async def create_invoice(req: InvoiceRequest):
@@ -95,8 +102,10 @@ def leaderboard():
             "user_id": uid,
             "name": data.get("name", "Player"),
             "chips": data["chips"],
-            "wins": data["wins"],
-            "played": data["played"]
+            "wins": data.get("wins", 0),
+            "played": data.get("played", 0),
+            "total_wagered": data.get("total_wagered", 0),
+            "stars_spent": data.get("stars_spent", 0)
         })
-    players.sort(key=lambda x: x["chips"], reverse=True)
-    return {"leaderboard": players[:10]}
+    players.sort(key=lambda x: x["total_wagered"], reverse=True)
+    return {"leaderboard": players[:10], "prize_pool": sum(p["stars_spent"] for p in players)}
