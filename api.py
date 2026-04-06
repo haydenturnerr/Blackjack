@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
+import json, os
 
 app = FastAPI()
 
@@ -11,37 +13,89 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Shared user data with bot
-users = {}
+DB_FILE = "users.json"
 
-def get_user(uid):
-    if uid not in users:
-        users[uid] = {"chips": 1000}  # Start with 1000 free chips
-    return users[uid]
+def load_db():
+    if os.path.exists(DB_FILE):
+        return json.load(open(DB_FILE))
+    return {}
 
-class BetRequest(BaseModel):
-    user_id: int
-    amount: int
+def save_db(db):
+    json.dump(db, open(DB_FILE, "w"))
+
+def get_user(uid, name="Player"):
+    db = load_db()
+    key = str(uid)
+    if key not in db:
+        db[key] = {"name": name, "chips": 1000, "wins": 0, "played": 0, "stars_spent": 0}
+        save_db(db)
+    return db[key]
 
 class ChipsRequest(BaseModel):
     user_id: int
     amount: int
+    name: Optional[str] = "Player"
+
+class GameResult(BaseModel):
+    user_id: int
+    won: bool
+    amount: int
+    name: Optional[str] = "Player"
 
 @app.get("/chips/{user_id}")
-def get_chips(user_id: int):
-    u = get_user(user_id)
-    return {"chips": u["chips"]}
+def get_chips(user_id: int, name: str = "Player"):
+    u = get_user(user_id, name)
+    return {"chips": u["chips"], "wins": u["wins"], "played": u["played"]}
 
 @app.post("/chips/add")
 def add_chips(req: ChipsRequest):
-    u = get_user(req.user_id)
-    u["chips"] += req.amount
-    return {"chips": u["chips"]}
+    db = load_db()
+    key = str(req.user_id)
+    if key not in db:
+        db[key] = {"name": req.name, "chips": 1000, "wins": 0, "played": 0, "stars_spent": 0}
+    db[key]["chips"] += req.amount
+    db[key]["stars_spent"] = db[key].get("stars_spent", 0) + req.amount
+    save_db(db)
+    return {"chips": db[key]["chips"]}
 
 @app.post("/chips/deduct")
 def deduct_chips(req: ChipsRequest):
-    u = get_user(req.user_id)
-    if u["chips"] < req.amount:
+    db = load_db()
+    key = str(req.user_id)
+    if key not in db:
+        return {"error": "User not found"}
+    if db[key]["chips"] < req.amount:
         return {"error": "Not enough chips"}
-    u["chips"] -= req.amount
-    return {"chips": u["chips"]}
+    db[key]["chips"] -= req.amount
+    save_db(db)
+    return {"chips": db[key]["chips"]}
+
+@app.post("/game/result")
+def game_result(req: GameResult):
+    db = load_db()
+    key = str(req.user_id)
+    if key not in db:
+        db[key] = {"name": req.name, "chips": 1000, "wins": 0, "played": 0, "stars_spent": 0}
+    db[key]["played"] += 1
+    if req.won:
+        db[key]["wins"] += 1
+        db[key]["chips"] += req.amount
+    else:
+        db[key]["chips"] -= req.amount
+    save_db(db)
+    return {"chips": db[key]["chips"]}
+
+@app.get("/leaderboard")
+def leaderboard():
+    db = load_db()
+    players = []
+    for uid, data in db.items():
+        players.append({
+            "user_id": uid,
+            "name": data.get("name", "Player"),
+            "chips": data["chips"],
+            "wins": data["wins"],
+            "played": data["played"]
+        })
+    players.sort(key=lambda x: x["chips"], reverse=True)
+    return {"leaderboard": players[:10]}
