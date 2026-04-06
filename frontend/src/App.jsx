@@ -139,17 +139,19 @@ export default function App() {
     if (chips < bet) return setMessage("Not enough chips!");
     setLastBet(bet);
     trackWager(bet);
+    updateChips(bet, false); // deduct bet upfront
     const newDeck = createDeck();
     const p = [newDeck.pop(), newDeck.pop()];
     const d = [newDeck.pop(), newDeck.pop()];
     setDeck(newDeck); setPlayerHand(p); setDealerHand(d);
     setSplitHand(null); setSplitBet(0); setActiveHand("main");
     if (isBlackjack(p) && !isBlackjack(d)) {
-      const win = Math.floor(bet * 1.5);
-      setPhase("done"); setMessage(`🃏 BLACKJACK! +${win} chips!`);
+      const win = Math.floor(bet * 2.5); // return bet + 1.5x profit
+      setPhase("done"); setMessage(`🃏 BLACKJACK! +${Math.floor(bet * 1.5)} chips!`);
       updateChips(win, true);
     } else if (isBlackjack(p) && isBlackjack(d)) {
       setPhase("done"); setMessage("Both Blackjack! Push 🤝");
+      updateChips(bet, true); // return bet
     } else {
       setPhase("playing"); setMessage("Hit or Stand?");
     }
@@ -183,16 +185,16 @@ export default function App() {
     const dv = handTotal(dHand);
     const pv = handTotal(pHand);
     let msg = "";
-    if (pv > 21) { msg += "Bust 💸 "; updateChips(bet, false); }
-    else if (dv > 21 || pv > dv) { msg += "You Win! 🎉 "; updateChips(bet, true); }
-    else if (pv === dv) { msg += "Push 🤝 "; }
-    else { msg += "Dealer Wins 😔 "; updateChips(bet, false); }
+    if (pv > 21) { msg += "Bust 💸 "; } // already deducted
+    else if (dv > 21 || pv > dv) { msg += "You Win! 🎉 "; updateChips(bet * 2, true); } // return bet + profit
+    else if (pv === dv) { msg += "Push 🤝 "; updateChips(bet, true); } // return bet
+    else { msg += "Dealer Wins 😔 "; } // already deducted
     if (sHand) {
       const sv = handTotal(sHand);
-      if (sv > 21) { msg += "| Split: Bust"; updateChips(splitBet, false); }
-      else if (dv > 21 || sv > dv) { msg += "| Split: Win! 🎉"; updateChips(splitBet, true); }
-      else if (sv === dv) { msg += "| Split: Push"; }
-      else { msg += "| Split: Lose"; updateChips(splitBet, false); }
+      if (sv > 21) { msg += "| Split: Bust"; }
+      else if (dv > 21 || sv > dv) { msg += "| Split: Win! 🎉"; updateChips(splitBet * 2, true); }
+      else if (sv === dv) { msg += "| Split: Push"; updateChips(splitBet, true); }
+      else { msg += "| Split: Lose"; }
     }
     setMessage(msg);
   }
