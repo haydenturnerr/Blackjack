@@ -1,10 +1,34 @@
-from fastapi import FastAPI
+cd /Users/haydenturner/Downloads/blackjack && cat >> api.py << 'EOF'
+
+import httpx
+
+BOT_TOKEN = "8513833879:AAF9bnHK7ri5CJQp9jAQph2a2nlINpRZhII"
+
+class InvoiceRequest(BaseModel):
+    user_id: int
+    stars: int
+
+@app.post("/invoice")
+async def create_invoice(req: InvoiceRequest):
+    chips = req.stars * 10
+    async with httpx.AsyncClient() as client:
+        res = await client.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/createInvoiceLink",
+            json={
+                "title": f"{chips} Blackjack Chips",
+                "description": f"Buy {chips} chips to play Blackjack!",
+                "payload": f"chips_{chips}_{req.user_id}",
+                "currency": "XTR",
+                "prices": [{"label": f"{chips} Chips", "amount": req.stars}]
+            }
+        )
+        data = res.json()
+        return {"invoice_link": data["result"]}
+EOFfrom fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-import json, os, httpx
-
-BOT_TOKEN = "8513833879:AAF9bnHK7ri5CJQp9jAQph2a2nlINpRZhII"
+import json, os
 
 app = FastAPI()
 
@@ -29,7 +53,7 @@ def get_user(uid, name="Player"):
     db = load_db()
     key = str(uid)
     if key not in db:
-        db[key] = {"name": name, "chips": 1000, "wins": 0, "played": 0}
+        db[key] = {"name": name, "chips": 1000, "wins": 0, "played": 0, "stars_spent": 0}
         save_db(db)
     return db[key]
 
@@ -38,9 +62,11 @@ class ChipsRequest(BaseModel):
     amount: int
     name: Optional[str] = "Player"
 
-class InvoiceRequest(BaseModel):
+class GameResult(BaseModel):
     user_id: int
-    stars: int
+    won: bool
+    amount: int
+    name: Optional[str] = "Player"
 
 @app.get("/chips/{user_id}")
 def get_chips(user_id: int, name: str = "Player"):
@@ -52,8 +78,9 @@ def add_chips(req: ChipsRequest):
     db = load_db()
     key = str(req.user_id)
     if key not in db:
-        db[key] = {"name": req.name, "chips": 1000, "wins": 0, "played": 0}
+        db[key] = {"name": req.name, "chips": 1000, "wins": 0, "played": 0, "stars_spent": 0}
     db[key]["chips"] += req.amount
+    db[key]["stars_spent"] = db[key].get("stars_spent", 0) + req.amount
     save_db(db)
     return {"chips": db[key]["chips"]}
 
@@ -69,22 +96,20 @@ def deduct_chips(req: ChipsRequest):
     save_db(db)
     return {"chips": db[key]["chips"]}
 
-@app.post("/invoice")
-async def create_invoice(req: InvoiceRequest):
-    chips = req.stars * 10
-    async with httpx.AsyncClient() as client:
-        res = await client.post(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/createInvoiceLink",
-            json={
-                "title": f"{chips} Blackjack Chips",
-                "description": f"Buy {chips} chips to play Blackjack!",
-                "payload": f"chips_{chips}_{req.user_id}",
-                "currency": "XTR",
-                "prices": [{"label": f"{chips} Chips", "amount": req.stars}]
-            }
-        )
-        data = res.json()
-        return {"invoice_link": data["result"]}
+@app.post("/game/result")
+def game_result(req: GameResult):
+    db = load_db()
+    key = str(req.user_id)
+    if key not in db:
+        db[key] = {"name": req.name, "chips": 1000, "wins": 0, "played": 0, "stars_spent": 0}
+    db[key]["played"] += 1
+    if req.won:
+        db[key]["wins"] += 1
+        db[key]["chips"] += req.amount
+    else:
+        db[key]["chips"] -= req.amount
+    save_db(db)
+    return {"chips": db[key]["chips"]}
 
 @app.get("/leaderboard")
 def leaderboard():

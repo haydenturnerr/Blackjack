@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import "./App.css";
 
+const API = "https://blackjack-api-e31a.onrender.com";
 const SUITS = ["♠", "♥", "♦", "♣"];
 const VALUES = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 
@@ -49,31 +50,56 @@ function Card({ card, hidden }) {
 }
 
 export default function App() {
+  const tg = window.Telegram?.WebApp;
+  const userId = tg?.initDataUnsafe?.user?.id || 123;
+  const userName = tg?.initDataUnsafe?.user?.first_name || "Player";
+
   const [deck, setDeck] = useState([]);
   const [playerHand, setPlayerHand] = useState([]);
   const [dealerHand, setDealerHand] = useState([]);
-  const [chips, setChips] = useState(1000);
+  const [chips, setChips] = useState(0);
   const [bet, setBet] = useState(0);
   const [phase, setPhase] = useState("betting");
-  const [message, setMessage] = useState("Place your bet!");
+  const [message, setMessage] = useState("Loading...");
   const [showBuy, setShowBuy] = useState(false);
-  const tg = window.Telegram?.WebApp;
 
   useEffect(() => {
     if (tg) tg.ready();
+    fetch(`${API}/chips/${userId}?name=${userName}`, {
+      headers: { "ngrok-skip-browser-warning": "true" }
+    })
+      .then(r => r.json())
+      .then(data => {
+        setChips(data.chips);
+        setMessage("Place your bet!");
+      })
+      .catch(() => {
+        setChips(1000);
+        setMessage("Place your bet!");
+      });
   }, []);
 
-  function buyChips(stars, chipsAmount) {
+  function buyChips(stars) {
     if (tg) {
       tg.openTelegramLink(`https://t.me/blackjacktournamentbot?start=buy_${stars}`);
-      // After returning, add chips optimistically
       setShowBuy(false);
-      setMessage(`Opening bot to buy ${chipsAmount} chips ⭐`);
     }
+  }
+
+  async function updateChips(amount, won) {
+    const endpoint = won ? "/chips/add" : "/chips/deduct";
+    const res = await fetch(`${API}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+      body: JSON.stringify({ user_id: userId, amount: Math.abs(amount), name: userName })
+    });
+    const data = await res.json();
+    if (data.chips !== undefined) setChips(data.chips);
   }
 
   function startGame() {
     if (bet === 0) return setMessage("Place a bet first!");
+    if (chips < bet) return setMessage("Not enough chips!");
     const newDeck = createDeck();
     const p = [newDeck.pop(), newDeck.pop()];
     const d = [newDeck.pop(), newDeck.pop()];
@@ -87,7 +113,7 @@ export default function App() {
     setDeck(newDeck); setPlayerHand(newHand);
     if (handTotal(newHand) > 21) {
       setPhase("done"); setMessage("Bust! You lose 💸");
-      setChips(c => c - bet);
+      updateChips(bet, false);
     }
   }
 
@@ -98,9 +124,15 @@ export default function App() {
     setDealerHand(dHand); setDeck(newDeck); setPhase("done");
     const p = handTotal(playerHand);
     const d = handTotal(dHand);
-    if (d > 21 || p > d) { setMessage("You win! 🎉"); setChips(c => c + bet); }
-    else if (p === d) { setMessage("Push! Tie 🤝"); }
-    else { setMessage("Dealer wins 😔"); setChips(c => c - bet); }
+    if (d > 21 || p > d) {
+      setMessage("You win! 🎉");
+      updateChips(bet, true);
+    } else if (p === d) {
+      setMessage("Push! Tie 🤝");
+    } else {
+      setMessage("Dealer wins 😔");
+      updateChips(bet, false);
+    }
   }
 
   function reset() {
@@ -109,7 +141,7 @@ export default function App() {
   }
 
   function placeBet(amount) {
-    if (chips >= amount) setBet(b => b + amount);
+    if (chips >= bet + amount) setBet(b => b + amount);
   }
 
   if (showBuy) return (
@@ -121,14 +153,12 @@ export default function App() {
       <h2 style={{ color: "#ffd700", marginBottom: 8 }}>⭐ Buy Chips</h2>
       <p style={{ color: "#aaa", marginBottom: 24 }}>Your chips: {chips}</p>
       {[[10, 100], [50, 500], [100, 1000]].map(([stars, chipsAmt]) => (
-        <button key={stars} onClick={() => buyChips(stars, chipsAmt)}
+        <button key={stars} onClick={() => buyChips(stars)}
           style={{...btnStyle("#b8860b"), marginBottom: 12, width: 220}}>
           ⭐ {stars} Stars → {chipsAmt} chips
         </button>
       ))}
-      <button onClick={() => setShowBuy(false)} style={{...btnStyle("#555"), marginTop: 8}}>
-        ← Back
-      </button>
+      <button onClick={() => setShowBuy(false)} style={{...btnStyle("#555"), marginTop: 8}}>← Back</button>
     </div>
   );
 
@@ -141,43 +171,29 @@ export default function App() {
       <h1 style={{ fontSize: 26, color: "#ffd700", marginBottom: 4, textShadow: "0 0 20px rgba(255,215,0,0.5)" }}>
         ♠ Blackjack Tournament ♠
       </h1>
-
       <div style={{ fontSize: 16, color: "#ffd700", marginBottom: 4 }}>
         Chips: {chips} | Bet: {bet}
       </div>
-
       <button onClick={() => setShowBuy(true)} style={{...btnStyle("#b8860b"), fontSize: 13, padding: "6px 16px", marginBottom: 16}}>
         ⭐ Buy Chips
       </button>
 
       <div style={{ marginBottom: 16, textAlign: "center" }}>
-        <div style={{ color: "#aaa", marginBottom: 6 }}>
-          Dealer {phase === "done" ? `(${handTotal(dealerHand)})` : ""}
-        </div>
+        <div style={{ color: "#aaa", marginBottom: 6 }}>Dealer {phase === "done" ? `(${handTotal(dealerHand)})` : ""}</div>
         <div style={{ display: "flex", justifyContent: "center" }}>
-          {dealerHand.map((card, i) => (
-            <Card key={i} card={card} hidden={phase === "playing" && i === 1} />
-          ))}
+          {dealerHand.map((card, i) => <Card key={i} card={card} hidden={phase === "playing" && i === 1} />)}
         </div>
       </div>
 
-      <motion.div
-        key={message}
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        style={{ fontSize: 20, fontWeight: "bold", color: "#ffd700", margin: "12px 0", textAlign: "center" }}
-      >
+      <motion.div key={message} initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        style={{ fontSize: 20, fontWeight: "bold", color: "#ffd700", margin: "12px 0", textAlign: "center" }}>
         {message}
       </motion.div>
 
       <div style={{ marginBottom: 16, textAlign: "center" }}>
-        <div style={{ color: "#aaa", marginBottom: 6 }}>
-          You {playerHand.length > 0 ? `(${handTotal(playerHand)})` : ""}
-        </div>
+        <div style={{ color: "#aaa", marginBottom: 6 }}>You {playerHand.length > 0 ? `(${handTotal(playerHand)})` : ""}</div>
         <div style={{ display: "flex", justifyContent: "center" }}>
-          {playerHand.map((card, i) => (
-            <Card key={i} card={card} hidden={false} />
-          ))}
+          {playerHand.map((card, i) => <Card key={i} card={card} hidden={false} />)}
         </div>
       </div>
 
@@ -185,9 +201,7 @@ export default function App() {
         {phase === "betting" && (
           <>
             {[10, 50, 100, 500].map(amount => (
-              <button key={amount} onClick={() => placeBet(amount)} style={btnStyle("#1a5c2a")}>
-                +{amount}
-              </button>
+              <button key={amount} onClick={() => placeBet(amount)} style={btnStyle("#1a5c2a")}>+{amount}</button>
             ))}
             <button onClick={startGame} style={btnStyle("#8B0000")}>Deal 🃏</button>
             {bet > 0 && <button onClick={() => setBet(0)} style={btnStyle("#555")}>Clear</button>}
@@ -199,9 +213,7 @@ export default function App() {
             <button onClick={stand} style={btnStyle("#8B0000")}>Stand ✋</button>
           </>
         )}
-        {phase === "done" && (
-          <button onClick={reset} style={btnStyle("#1a3a8B")}>New Hand 🔄</button>
-        )}
+        {phase === "done" && <button onClick={reset} style={btnStyle("#1a3a8B")}>New Hand 🔄</button>}
       </div>
     </div>
   );
