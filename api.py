@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 import json, os, httpx
+from datetime import datetime, timedelta
 
 BOT_TOKEN = "8513833879:AAF9bnHK7ri5CJQp9jAQph2a2nlINpRZhII"
 
@@ -35,8 +36,27 @@ def get_user(uid, name="Player"):
         db[key]["total_wagered"] = 0
         db[key]["total_won"] = 0
         db[key]["stars_spent"] = 0
+        db[key]["last_daily"] = None
         save_db(db)
     return db[key]
+
+def claim_daily(uid, name="Player"):
+    db = load_db()
+    key = str(uid)
+    user = get_user(uid, name)
+    now = datetime.utcnow()
+    last = user.get("last_daily")
+    if last:
+        last_dt = datetime.fromisoformat(last)
+        if now - last_dt < timedelta(hours=24):
+            remaining = timedelta(hours=24) - (now - last_dt)
+            hours = int(remaining.total_seconds() // 3600)
+            mins = int((remaining.total_seconds() % 3600) // 60)
+            return {"claimed": False, "message": f"Come back in {hours}h {mins}m", "chips": db[key]["chips"]}
+    db[key]["chips"] += 100
+    db[key]["last_daily"] = now.isoformat()
+    save_db(db)
+    return {"claimed": True, "message": "Daily bonus claimed!", "chips": db[key]["chips"]}
 
 class ChipsRequest(BaseModel):
     user_id: int
@@ -75,6 +95,10 @@ def deduct_chips(req: ChipsRequest):
     db[key]["played"] = db[key].get("played", 0) + 1
     save_db(db)
     return {"chips": db[key]["chips"], "total_wagered": db[key]["total_wagered"]}
+
+@app.get("/daily/{user_id}")
+def daily_bonus(user_id: int, name: str = "Player"):
+    return claim_daily(user_id, name)
 
 @app.post("/wager")
 def track_wager(req: ChipsRequest):

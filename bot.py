@@ -32,11 +32,21 @@ def is_bj(h): return len(h)==2 and hand_value(h)==21
 
 users = {}
 games = {}
+API = "https://blackjack-api-e31a.onrender.com"
 
 def get_user(uid):
     if uid not in users:
         users[uid] = {'chips':0,'played':0,'wins':0}
     return users[uid]
+
+async def get_chips_from_api(uid, name="Player"):
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.get(f"{API}/chips/{uid}?name={name}")
+            data = res.json()
+            return data.get("chips", 0)
+    except:
+        return users.get(uid, {}).get("chips", 0)
 
 def bet_kb():
     return InlineKeyboardMarkup([
@@ -69,15 +79,25 @@ def again_kb():
     ])
 
 async def start(update, ctx):
-    u = get_user(update.effective_user.id)
+    uid = update.effective_user.id
+    name = update.effective_user.first_name or "Player"
+    chips = await get_chips_from_api(uid, name)
     args = ctx.args
     if args and args[0].startswith('buy'):
         await update.message.reply_text(
-            f"⭐ *Buy Chips*\n\nYour chips: *{u['chips']}*\n\n1 ⭐ = {CHIPS_PER_STAR} chips",
+            f"⭐ *Buy Chips*\n\nYour chips: *{chips}*\n\n1 ⭐ = {CHIPS_PER_STAR} chips",
             parse_mode='Markdown', reply_markup=buy_kb())
         return
-    await update.message.reply_text(
-        f"🃏 *Welcome to BlackJack Bot!*\n\nYour chips: *{u['chips']}*",
+    await update.message.reply_photo(
+        photo="https://frontend-iota-two-17.vercel.app/prize.png",
+        caption=(
+            "♠️ *Blackjack Tournament*\n\n"
+            "Play Blackjack, wager chips and climb the leaderboard!\n\n"
+            "🥇 1st place — 200 ⭐ Stars\n"
+            "🥈 2nd place — 75 ⭐ Stars\n"
+            "🥉 3rd place — 25 ⭐ Stars\n\n"
+            "_Top wagerers win real Telegram Stars every week!_"
+        ),
         parse_mode='Markdown',
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("🎮 Play Blackjack", web_app={"url": "https://frontend-iota-two-17.vercel.app"})],

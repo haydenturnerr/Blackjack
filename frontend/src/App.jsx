@@ -91,6 +91,24 @@ export default function App() {
       .catch(() => { setChips(1000); setMessage("Place your bet!"); });
   }
 
+  useEffect(() => {
+    fetch(`${API}/daily/${userId}?name=${userName}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.claimed) {
+          setMessage("🎁 Daily bonus! +100 chips!");
+          setTimeout(() => setMessage("Place your bet!"), 3000);
+          setChips(data.chips);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  function shareApp() {
+    const text = "♠️ Play Blackjack Tournament on Telegram! Wager chips, climb the leaderboard and win real ⭐ Stars every week! t.me/blackjacktournamentbot";
+    if (tg) tg.openTelegramLink(`https://t.me/share/url?url=t.me/blackjacktournamentbot&text=${encodeURIComponent(text)}`);
+  }
+
   function loadLeaderboard() {
     fetch(`${API}/leaderboard`)
       .then(r => r.json())
@@ -257,12 +275,25 @@ export default function App() {
   };
 
   // Full leaderboard screen
+  const PRIZES = [200, 75, 25];
+
   if (showLeaderboard) return (
     <div style={s.app}>
       <div style={s.topbar}>
         <button onClick={() => setShowLeaderboard(false)} style={{...s.actBtn, padding: "8px 16px", fontSize: 13}}>← Back</button>
         <div style={{color: "white", fontWeight: 900, fontSize: 16}}>🏆 Leaderboard</div>
         <div style={{width: 70}} />
+      </div>
+      <div style={{ padding: "0 16px 8px", textAlign: "center" }}>
+        <div style={{ background: "rgba(255,215,0,0.1)", border: "1px solid rgba(255,215,0,0.2)", borderRadius: 12, padding: "10px 16px", marginBottom: 12 }}>
+          <div style={{ color: "#ffd700", fontSize: 13, fontWeight: "bold" }}>🏆 Weekly Tournament Prizes</div>
+          <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 4 }}>Top wagerers win Stars every week!</div>
+          <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 8 }}>
+            <div style={{ textAlign: "center" }}><div style={{ fontSize: 20 }}>🥇</div><div style={{ color: "#ffd700", fontSize: 13, fontWeight: 900 }}>200 ⭐</div></div>
+            <div style={{ textAlign: "center" }}><div style={{ fontSize: 20 }}>🥈</div><div style={{ color: "#c0c0c0", fontSize: 13, fontWeight: 900 }}>75 ⭐</div></div>
+            <div style={{ textAlign: "center" }}><div style={{ fontSize: 20 }}>🥉</div><div style={{ color: "#cd7f32", fontSize: 13, fontWeight: 900 }}>25 ⭐</div></div>
+          </div>
+        </div>
       </div>
       <div style={{ padding: "0 16px", flex: 1, overflowY: "auto" }}>
         {leaders.map((p, i) => (
@@ -277,9 +308,12 @@ export default function App() {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ color: "white", fontWeight: "bold", fontSize: 15 }}>{p.name}</div>
-              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>{p.wins} wins · {p.played} played</div>
+              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>🎰 {p.total_wagered} wagered</div>
             </div>
-            <div style={{ color: "#ffd700", fontWeight: 900, fontSize: 16 }}>🎰 {p.total_wagered}</div>
+            <div style={{ textAlign: "right" }}>
+              {i < 3 && <div style={{ color: "#ffd700", fontSize: 13, fontWeight: 900, marginBottom: 2 }}>⭐ {PRIZES[i]}</div>}
+              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>{p.wins} wins</div>
+            </div>
           </div>
         ))}
       </div>
@@ -306,7 +340,10 @@ export default function App() {
     <div style={s.app}>
       <div style={s.topbar}>
         <div style={s.balancePill}>🪙 {chips}</div>
-        <button style={s.lbBtn} onClick={() => { loadLeaderboard(); setShowLeaderboard(true); }}>🏆 Leaderboard</button>
+        <div style={{display:"flex", gap:6}}>
+          <button style={s.lbBtn} onClick={() => { loadLeaderboard(); setShowLeaderboard(true); }}>🏆</button>
+          <button style={s.lbBtn} onClick={shareApp}>📢</button>
+        </div>
         <button style={s.buyPill} onClick={() => setShowBuy(true)}>+ Buy</button>
       </div>
 
