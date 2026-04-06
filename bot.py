@@ -70,10 +70,18 @@ def again_kb():
 
 async def start(update, ctx):
     u = get_user(update.effective_user.id)
+    args = ctx.args
+    if args and args[0].startswith('buy'):
+        await update.message.reply_text(
+            f"⭐ *Buy Chips*\n\nYour chips: *{u['chips']}*\n\n1 ⭐ = {CHIPS_PER_STAR} chips",
+            parse_mode='Markdown', reply_markup=buy_kb())
+        return
     await update.message.reply_text(
-        f"🃏 *Welcome to BlackJack Bot!*\n\nBeat the dealer without going over 21.\n\n"
-        f"💰 Your chips: *{u['chips']}*\n\n1 ⭐ = {CHIPS_PER_STAR} chips",
-        parse_mode='Markdown', reply_markup=buy_kb())
+        f"🃏 *Welcome to BlackJack Bot!*\n\nYour chips: *{u['chips']}*",
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🎮 Play Blackjack", web_app={"url": "https://frontend-iota-two-17.vercel.app"})],
+        ]))
 
 async def play(update, ctx):
     u = get_user(update.effective_user.id)
@@ -202,14 +210,19 @@ async def precheckout(update, ctx):
 
 async def paid(update, ctx):
     uid = update.effective_user.id
+    name = update.effective_user.first_name or "Player"
     u = get_user(uid)
     chips = int(update.message.successful_payment.invoice_payload.split('_')[1])
     stars = update.message.successful_payment.total_amount
     u['chips'] += chips
+    import httpx
+    async with httpx.AsyncClient() as client:
+        await client.post("https://blackjack-api-e31a.onrender.com/chips/add",
+            json={"user_id": uid, "amount": chips, "name": name})
     await update.message.reply_text(
         f"⭐ {stars} Stars received! +{chips} chips added.\n\n💰 Balance: {u['chips']} chips",
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("Play Now 🎮", callback_data="play_again")
+            InlineKeyboardButton("🎮 Play Blackjack", web_app={"url": "https://frontend-iota-two-17.vercel.app"})
         ]]))
 
 async def main():
