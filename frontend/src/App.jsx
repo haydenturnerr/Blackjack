@@ -128,7 +128,21 @@ export default function App() {
       const data = await res.json();
       if (data.invoice_link && tg) {
         tg.openInvoice(data.invoice_link, (status) => {
-          if (status === "paid") setTimeout(() => { loadChips(); setShowBuy(false); }, 4000);
+          if (status === "paid") {
+            setShowBuy(false);
+            setMessage("⭐ Payment received! Adding chips...");
+            let attempts = 0;
+            const poll = setInterval(async () => {
+              attempts++;
+              const r = await fetch(`${API}/chips/${userId}?name=${userName}`);
+              const d = await r.json();
+              if (d.chips > chips || attempts > 10) {
+                clearInterval(poll);
+                setChips(d.chips);
+                setMessage("✅ Chips added! Place your bet!");
+              }
+            }, 2000);
+          }
         });
       }
     } catch (e) { console.error(e); }

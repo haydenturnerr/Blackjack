@@ -8,7 +8,7 @@ import httpx
 from api import app as fastapi_app
 
 BOT_TOKEN = "8513833879:AAF9bnHK7ri5CJQp9jAQph2a2nlINpRZhII"
-API_URL = "http://localhost:8000"
+API_URL = "https://blackjack-api-e31a.onrender.com"
 CHIPS_PER_STAR = 10
 
 logging.basicConfig(level=logging.INFO)
