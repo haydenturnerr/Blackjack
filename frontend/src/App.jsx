@@ -105,8 +105,9 @@ export default function App() {
   }, []);
 
   function shareApp() {
-    const text = "♠️ Play Blackjack Tournament on Telegram! Wager chips, climb the leaderboard and win real ⭐ Stars every week! t.me/blackjacktournamentbot";
-    if (tg) tg.openTelegramLink(`https://t.me/share/url?url=t.me/blackjacktournamentbot&text=${encodeURIComponent(text)}`);
+    if (tg) {
+      tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/blackjacktournamentChannel/1&text=${encodeURIComponent("🃏 Join Blackjack Tournament — Win real ⭐ Stars every week!")}`);
+    }
   }
 
   function loadLeaderboard() {
