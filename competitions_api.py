@@ -10,7 +10,7 @@ from datetime import datetime
 
 SUPABASE_URL = "https://ocqhzyjktrqmycafqlpw.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jcWh6eWprdHJxbXljYWZxbHB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1OTIzNDUsImV4cCI6MjA5MTE2ODM0NX0.J4I-EcmblNPUNeQnO1GJXBBm1gWt7de52pfpSEn4wYs"
-BOT_TOKEN = "8513833879:AAF9bnHK7ri5CJQp9jAQph2a2nlINpRZhII"
+BOT_TOKEN = "8734635689:AAGBVV_8ruryi7N06O-l6oYFfC686t3u0xg"
 CHANNEL_ID = "@blackjacktournamentChannel"
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
