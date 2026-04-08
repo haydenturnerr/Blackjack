@@ -6,6 +6,12 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, PreCheckoutQueryHandler, MessageHandler, filters
 import httpx
 from api import app as fastapi_app
+from competitions import app as comp_app
+from fastapi import FastAPI
+
+combined_app = FastAPI()
+combined_app.mount("/", fastapi_app)
+combined_app.mount("/comp", comp_app)
 
 BOT_TOKEN = "8513833879:AAF9bnHK7ri5CJQp9jAQph2a2nlINpRZhII"
 API_URL = "https://blackjack-api-e31a.onrender.com"

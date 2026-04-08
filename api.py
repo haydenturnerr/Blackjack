@@ -104,3 +104,84 @@ def leaderboard():
     players = res.data or []
     total_stars = sum(p.get("stars_spent", 0) for p in players)
     return {"leaderboard": players, "prize_pool": total_stars}
+
+class TicketRequest(BaseModel):
+    competition_id: int
+    user_telegram_id: str
+    user_name: str
+    ton_address: str
+    tx_hash: Optional[str] = None
+
+@app.get("/competitions")
+def get_competitions():
+    res = supabase.table("competitions").select("*").eq("status", "active").execute()
+    return {"competitions": res.data}
+
+@app.get("/competitions/{comp_id}")
+def get_competition(comp_id: int):
+    res = supabase.table("competitions").select("*").eq("id", comp_id).execute()
+    if not res.data:
+        return {"error": "Not found"}
+    tickets = supabase.table("tickets").select("*").eq("competition_id", comp_id).execute()
+    return {"competition": res.data[0], "tickets": tickets.data}
+
+@app.post("/tickets/buy")
+async def buy_ticket(req: TicketRequest):
+    import asyncio, random
+    comp = supabase.table("competitions").select("*").eq("id", req.competition_id).execute()
+    if not comp.data:
+        return {"error": "Not found"}
+    c = comp.data[0]
+    if c["status"] != "active":
+        return {"detail": "Competition not active"}
+    if c["tickets_sold"] >= c["max_tickets"]:
+        return {"detail": "Sold out!"}
+    ticket_number = c["tickets_sold"] + 1
+    supabase.table("tickets").insert({
+        "competition_id": req.competition_id,
+        "ticket_number": ticket_number,
+        "user_telegram_id": req.user_telegram_id,
+        "user_name": req.user_name,
+        "ton_address": req.ton_address,
+        "tx_hash": req.tx_hash
+    }).execute()
+    new_sold = c["tickets_sold"] + 1
+    supabase.table("competitions").update({"tickets_sold": new_sold}).eq("id", req.competition_id).execute()
+    remaining = c["max_tickets"] - new_sold
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            json={"chat_id": "@blackjacktournamentChannel", "text": f"🎟️ Ticket #{ticket_number} sold to {req.user_name}!\n🏆 {c['name']}\n🎫 {remaining} tickets remaining!\n\nGet yours → t.me/blackjacktournamentbot"}
+        )
+    if new_sold >= c["max_tickets"]:
+        tickets = supabase.table("tickets").select("*").eq("competition_id", req.competition_id).execute()
+        block_hash = hex(random.getrandbits(256))
+        winning_idx = int(block_hash, 16) % len(tickets.data)
+        winner = tickets.data[winning_idx]
+        supabase.table("draws").insert({
+            "competition_id": req.competition_id,
+            "winning_ticket": winner["ticket_number"],
+            "winner_telegram_id": winner["user_telegram_id"],
+            "winner_name": winner["user_name"],
+            "winner_address": winner["ton_address"],
+            "block_hash": block_hash
+        }).execute()
+        supabase.table("competitions").update({
+            "status": "drawn",
+            "winner_ticket": winner["ticket_number"],
+            "winner_address": winner["ton_address"],
+            "winner_telegram_id": winner["user_telegram_id"],
+            "winner_name": winner["user_name"],
+            "draw_block_hash": block_hash
+        }).eq("id", req.competition_id).execute()
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                json={"chat_id": "@blackjacktournamentChannel", "text": f"🎰 DRAW!\n🏆 {c['name']}\n🔢 Hash: {block_hash[:20]}...\n🎯 Ticket #{winner['ticket_number']}\n🥳 WINNER: {winner['user_name']}!\n💰 Prize: {c['prize_description']}\n🔍 Verify: tonviewer.com"}
+            )
+    return {"ticket_number": ticket_number, "remaining": remaining, "total": c["max_tickets"]}
+
+@app.get("/draws")
+def get_draws():
+    res = supabase.table("draws").select("*").order("drawn_at", desc=True).limit(10).execute()
+    return {"draws": res.data}
