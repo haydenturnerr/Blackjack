@@ -3,11 +3,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 import httpx
+import os
+import base64
+import asyncio
+import random
 from supabase import create_client
+from tonsdk.contract.wallet import Wallets, WalletVersionEnum
+from tonsdk.utils import to_nano
+from tonsdk.crypto import mnemonic_to_wallet_key
 
 SUPABASE_URL = "https://ocqhzyjktrqmycafqlpw.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jcWh6eWprdHJxbXljYWZxbHB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1OTIzNDUsImV4cCI6MjA5MTE2ODM0NX0.J4I-EcmblNPUNeQnO1GJXBBm1gWt7de52pfpSEn4wYs"
 BOT_TOKEN = "8513833879:AAF9bnHK7ri5CJQp9jAQph2a2nlINpRZhII"
+TON_API = "https://toncenter.com/api/v2"
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -18,6 +26,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+async def send_ton_to_winner(winner_address: str, amount_ton: float):
+    try:
+        mnemonic_str = os.environ.get("TON_MNEMONIC", "")
+        if not mnemonic_str:
+            print("❌ TON_MNEMONIC not set")
+            return False
+        mnemonic = mnemonic_str.split()
+        _, _, _, wallet = Wallets.from_mnemonics(mnemonic, WalletVersionEnum.v4r2, 0)
+        wallet_address = wallet.address.to_string(True, True, True)
+        async with httpx.AsyncClient() as client:
+            seqno_resp = await client.get(f"{TON_API}/getSeqno", params={"address": wallet_address})
+            seqno = seqno_resp.json()["result"]
+            query = wallet.create_transfer_message(to_addr=winner_address, amount=to_nano(amount_ton, "ton"), seqno=seqno)
+            boc = base64.b64encode(query["message"].to_boc(False)).decode()
+            send_resp = await client.post(f"{TON_API}/sendBoc", json={"boc": boc})
+            print(f"✅ TON payout sent: {send_resp.json()}")
+            return True
+    except Exception as e:
+        print(f"❌ TON payout failed: {e}")
+        return False
 
 def get_user(user_id: str, name: str = "Player"):
     res = supabase.table("users").select("*").eq("user_id", user_id).execute()
@@ -35,6 +64,13 @@ class ChipsRequest(BaseModel):
 class InvoiceRequest(BaseModel):
     user_id: int
     stars: int
+
+class TicketRequest(BaseModel):
+    competition_id: int
+    user_telegram_id: str
+    user_name: str
+    ton_address: str
+    tx_hash: Optional[str] = None
 
 @app.get("/chips/{user_id}")
 def get_chips(user_id: int, name: str = "Player"):
@@ -87,16 +123,9 @@ async def create_invoice(req: InvoiceRequest):
     async with httpx.AsyncClient() as client:
         res = await client.post(
             f"https://api.telegram.org/bot{BOT_TOKEN}/createInvoiceLink",
-            json={
-                "title": f"{chips} Blackjack Chips",
-                "description": f"Buy {chips} chips to play Blackjack!",
-                "payload": f"chips_{chips}_{req.user_id}",
-                "currency": "XTR",
-                "prices": [{"label": f"{chips} Chips", "amount": req.stars}]
-            }
+            json={"title": f"{chips} Blackjack Chips", "description": f"Buy {chips} chips to play Blackjack!", "payload": f"chips_{chips}_{req.user_id}", "currency": "XTR", "prices": [{"label": f"{chips} Chips", "amount": req.stars}]}
         )
-        data = res.json()
-        return {"invoice_link": data["result"]}
+        return {"invoice_link": res.json()["result"]}
 
 @app.get("/leaderboard")
 def leaderboard():
@@ -104,13 +133,6 @@ def leaderboard():
     players = res.data or []
     total_stars = sum(p.get("stars_spent", 0) for p in players)
     return {"leaderboard": players, "prize_pool": total_stars}
-
-class TicketRequest(BaseModel):
-    competition_id: int
-    user_telegram_id: str
-    user_name: str
-    ton_address: str
-    tx_hash: Optional[str] = None
 
 @app.get("/competitions")
 def get_competitions():
@@ -127,7 +149,6 @@ def get_competition(comp_id: int):
 
 @app.post("/tickets/buy")
 async def buy_ticket(req: TicketRequest):
-    import asyncio, random
     comp = supabase.table("competitions").select("*").eq("id", req.competition_id).execute()
     if not comp.data:
         return {"error": "Not found"}
@@ -174,10 +195,13 @@ async def buy_ticket(req: TicketRequest):
             "winner_name": winner["user_name"],
             "draw_block_hash": block_hash
         }).eq("id", req.competition_id).execute()
+        prize_ton = c.get("prize_ton", 100)
+        payout_ok = await send_ton_to_winner(winner["ton_address"], prize_ton)
+        payout_status = "✅ Prize sent automatically!" if payout_ok else "⚠️ Auto-payout failed — manual send required."
         async with httpx.AsyncClient() as client:
             await client.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id": "@blackjacktournamentChannel", "text": f"🎰 DRAW!\n🏆 {c['name']}\n🔢 Hash: {block_hash[:20]}...\n🎯 Ticket #{winner['ticket_number']}\n🥳 WINNER: {winner['user_name']}!\n💰 Prize: {c['prize_description']}\n🔍 Verify: tonviewer.com"}
+                json={"chat_id": "@blackjacktournamentChannel", "text": f"🎰 DRAW COMPLETE!\n🏆 {c['name']}\n🔢 Hash: {block_hash[:20]}...\n🎯 Winning Ticket #{winner['ticket_number']}\n🥳 WINNER: {winner['user_name']}!\n💰 Prize: {prize_ton} TON\n📤 {payout_status}\n🔍 Verify: tonviewer.com"}
             )
     return {"ticket_number": ticket_number, "remaining": remaining, "total": c["max_tickets"]}
 
