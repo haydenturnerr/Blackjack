@@ -6,16 +6,12 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, PreCheckoutQueryHandler, MessageHandler, filters
 import httpx
 from api import app as fastapi_app
-from competitions import app as comp_app
-from fastapi import FastAPI
 
-combined_app = FastAPI()
-combined_app.mount("/", fastapi_app)
-combined_app.mount("/comp", comp_app)
-
-BOT_TOKEN = "8513833879:AAF9bnHK7ri5CJQp9jAQph2a2nlINpRZhII"
+BLACKJACK_TOKEN = "8513833879:AAF9bnHK7ri5CJQp9jAQph2a2nlINpRZhII"
+TON_TOKEN = "8734635689:AAGBVV_8ruryi7N06O-l6oYFfC686t3u0xg"
 API_URL = "https://blackjack-api-e31a.onrender.com"
 CHIPS_PER_STAR = 10
+MINI_APP_URL = "https://toncompetitions.vercel.app"
 
 logging.basicConfig(level=logging.INFO)
 
@@ -34,7 +30,9 @@ async def get_chips(uid, name="Player"):
     except:
         return 0
 
-async def start(update, ctx):
+# ── BLACKJACK BOT ──────────────────────────────────────────────────────────────
+
+async def bj_start(update, ctx):
     uid = update.effective_user.id
     name = update.effective_user.first_name or "Player"
     chips = await get_chips(uid, name)
@@ -66,13 +64,12 @@ async def button(update, ctx):
     uid = q.from_user.id
     name = q.from_user.first_name or "Player"
     d = q.data
-
     if d.startswith('buy_'):
         stars = int(d.split('_')[1])
         chips = stars * CHIPS_PER_STAR
         async with httpx.AsyncClient() as client:
             await client.post(
-                f"https://api.telegram.org/bot{BOT_TOKEN}/sendInvoice",
+                f"https://api.telegram.org/bot{BLACKJACK_TOKEN}/sendInvoice",
                 json={
                     "chat_id": uid,
                     "title": f"🃏 {chips} Blackjack Chips",
@@ -102,26 +99,65 @@ async def paid(update, ctx):
             InlineKeyboardButton("🎮 Play Blackjack", web_app={"url": "https://frontend-iota-two-17.vercel.app"})
         ]]))
 
-def run_bot():
+# ── TONCOMPETITIONS BOT ────────────────────────────────────────────────────────
+
+async def ton_start(update, ctx):
+    await update.message.reply_photo(
+        photo="https://toncompetitions.vercel.app/prize.png",
+        caption=(
+            "🏆 *TonCompetitions*\n\n"
+            "🎟️ 100 TON Giveaway — *LIVE NOW*\n"
+            "Only 111 tickets at 1 TON each\n"
+            "Draw is automatic when sold out\n"
+            "Winner paid instantly to wallet\n\n"
+            "🔜 1 ETH Giveaway — coming soon\n"
+            "🔜 1 BTC Giveaway — coming soon\n\n"
+            "_Fully verified on blockchain_ 🔍"
+        ),
+        parse_mode='Markdown',
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🎟️ Enter Competition", web_app={"url": MINI_APP_URL})
+        ]])
+    )
+
+# ── RUN BOTH BOTS ──────────────────────────────────────────────────────────────
+
+def run_blackjack_bot():
     async def main():
         app = (Application.builder()
-               .token(BOT_TOKEN)
+               .token(BLACKJACK_TOKEN)
                .connect_timeout(30)
                .read_timeout(30)
                .write_timeout(30)
                .build())
-        app.add_handler(CommandHandler("start", start))
+        app.add_handler(CommandHandler("start", bj_start))
         app.add_handler(CallbackQueryHandler(button))
         app.add_handler(PreCheckoutQueryHandler(precheckout))
         app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, paid))
         async with app:
             await app.start()
-            print("🃏 BlackJack Bot is running!")
+            print("🃏 BlackJack Bot running!")
+            await app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+            await asyncio.sleep(float('inf'))
+    asyncio.run(main())
+
+def run_ton_bot():
+    async def main():
+        app = (Application.builder()
+               .token(TON_TOKEN)
+               .connect_timeout(30)
+               .read_timeout(30)
+               .write_timeout(30)
+               .build())
+        app.add_handler(CommandHandler("start", ton_start))
+        async with app:
+            await app.start()
+            print("🏆 TonCompetitions Bot running!")
             await app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
             await asyncio.sleep(float('inf'))
     asyncio.run(main())
 
 if __name__ == "__main__":
-    bot_thread = threading.Thread(target=run_bot, daemon=True)
-    bot_thread.start()
+    threading.Thread(target=run_blackjack_bot, daemon=True).start()
+    threading.Thread(target=run_ton_bot, daemon=True).start()
     uvicorn.run(fastapi_app, host="0.0.0.0", port=10000)
