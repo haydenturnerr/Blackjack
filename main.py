@@ -102,9 +102,8 @@ async def paid(update, ctx):
 # ── TONCOMPETITIONS BOT ────────────────────────────────────────────────────────
 
 async def ton_start(update, ctx):
-    await update.message.reply_photo(
-        photo="https://toncompetitions.vercel.app/prize.png",
-        caption=(
+    await update.message.reply_text(
+        text=(
             "🏆 *TonCompetitions*\n\n"
             "🎟️ 100 TON Giveaway — *LIVE NOW*\n"
             "Only 111 tickets at 1 TON each\n"
