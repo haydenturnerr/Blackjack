@@ -35,14 +35,15 @@ async def send_ton_to_winner(winner_address: str, amount_ton: float):
         mnemonic = mnemonic_str.split()
         print(f"🚀 Starting payout: {amount_ton} TON to {winner_address}")
         client = ToncenterClient(network=NetworkGlobalID.MAINNET)
-        wallet, _, _, _ = WalletV5R1.from_mnemonic(client, mnemonic)
-        print(f"💳 Wallet address: {wallet.address}")
-        tx_hash = await wallet.transfer(
-            destination=winner_address,
-            amount=amount_ton,
-            body="🏆 TonCompetitions Prize!"
-        )
-        print(f"✅ TON payout sent! TX: {tx_hash}")
+        async with client:
+            wallet, _, _, _ = WalletV5R1.from_mnemonic(client, mnemonic)
+            print(f"💳 Wallet address: {wallet.address}")
+            tx_hash = await wallet.transfer(
+                destination=winner_address,
+                amount=amount_ton,
+                body="🏆 TonCompetitions Prize!"
+            )
+            print(f"✅ TON payout sent! TX: {tx_hash}")
         return True
     except Exception as e:
         print(f"❌ TON payout failed: {e}")
