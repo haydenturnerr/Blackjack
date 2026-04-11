@@ -38,25 +38,35 @@ async def send_ton_to_winner(winner_address: str, amount_ton: float):
         if winner_address.startswith("0:"):
             from tonsdk.utils import Address
             winner_address = Address(winner_address).to_string(True, True, True)
+        print(f"🚀 Starting payout: {amount_ton} TON to {winner_address}")
         # Convert raw address to friendly format if needed
         if winner_address.startswith("0:"):
-            from tonsdk.utils import Address
-            winner_address = Address(winner_address).to_string(True, True, True)
+            try:
+                from tonsdk.utils import Address
+                winner_address = Address(winner_address).to_string(True, True, True)
+                print(f"📍 Converted address: {winner_address}")
+            except Exception as ae:
+                print(f"❌ Address conversion failed: {ae}")
+                return False
         for version in [WalletVersionEnum.v4r2, WalletVersionEnum.v3r2]:
             try:
+                print(f"🔑 Trying wallet version: {version}")
                 _, _, _, wallet = Wallets.from_mnemonics(mnemonic, version, 0)
                 wallet_address = wallet.address.to_string(True, True, True)
+                print(f"💳 Wallet address: {wallet_address}")
                 async with httpx.AsyncClient() as client:
                     seqno_resp = await client.get(f"{TON_API}/getSeqno", params={"address": wallet_address})
                     data = seqno_resp.json()
+                    print(f"📊 Seqno response: {data}")
                     if "result" not in data:
+                        print(f"⚠️ No seqno result for {version}")
                         continue
                     seqno = data["result"]
                     query = wallet.create_transfer_message(to_addr=winner_address, amount=to_nano(amount_ton, "ton"), seqno=seqno)
                     boc = base64.b64encode(query["message"].to_boc(False)).decode()
                     send_resp = await client.post(f"{TON_API}/sendBoc", json={"boc": boc})
                     result = send_resp.json()
-                    print(f"✅ TON payout sent: {result}")
+                    print(f"✅ TON payout result: {result}")
                     return True
             except Exception as ve:
                 print(f"⚠️ Version {version} error: {ve}")
