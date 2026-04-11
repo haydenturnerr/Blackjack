@@ -34,6 +34,14 @@ async def send_ton_to_winner(winner_address: str, amount_ton: float):
             print("❌ TON_MNEMONIC not set")
             return False
         mnemonic = mnemonic_str.split()
+        # Convert raw address to friendly format if needed
+        if winner_address.startswith("0:"):
+            from tonsdk.utils import Address
+            winner_address = Address(winner_address).to_string(True, True, True)
+        # Convert raw address to friendly format if needed
+        if winner_address.startswith("0:"):
+            from tonsdk.utils import Address
+            winner_address = Address(winner_address).to_string(True, True, True)
         for version in [WalletVersionEnum.v4r2, WalletVersionEnum.v3r2]:
             try:
                 _, _, _, wallet = Wallets.from_mnemonics(mnemonic, version, 0)
