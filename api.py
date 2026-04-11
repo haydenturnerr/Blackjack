@@ -8,8 +8,8 @@ import base64
 import asyncio
 import random
 from supabase import create_client
-from tonutils.client import ToncenterV3Client
-from tonutils.wallet import WalletV5R1
+from tonutils.clients.http.toncenter.provider import ToncenterClient
+from tonutils.contracts.wallet.versions.v5 import WalletV5R1
 
 SUPABASE_URL = "https://ocqhzyjktrqmycafqlpw.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jcWh6eWprdHJxbXljYWZxbHB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1OTIzNDUsImV4cCI6MjA5MTE2ODM0NX0.J4I-EcmblNPUNeQnO1GJXBBm1gWt7de52pfpSEn4wYs"
@@ -34,7 +34,7 @@ async def send_ton_to_winner(winner_address: str, amount_ton: float):
             return False
         mnemonic = mnemonic_str.split()
         print(f"🚀 Starting payout: {amount_ton} TON to {winner_address}")
-        client = ToncenterV3Client(is_testnet=False, rps=1, max_retries=3)
+        client = ToncenterClient(is_testnet=False)
         wallet, _, _, _ = WalletV5R1.from_mnemonic(client, mnemonic)
         print(f"💳 Wallet address: {wallet.address}")
         tx_hash = await wallet.transfer(
