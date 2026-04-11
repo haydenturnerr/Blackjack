@@ -29,6 +29,19 @@ async def start(update, ctx):
             except:
                 pass
 
+    # Notify Hayden of new user
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                json={
+                    "chat_id": "1283355111",
+                    "text": f"🆕 New user on TonCompetitions!\n👤 {name}\n🆔 {uid}"
+                }
+            )
+    except:
+        pass
+
     ref_link = f"https://t.me/TonCompetitions_bot?start=ref_{uid}"
 
     await update.message.reply_text(
