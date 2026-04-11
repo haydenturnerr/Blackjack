@@ -71,6 +71,8 @@ class TicketRequest(BaseModel):
     user_name: str
     ton_address: str
     tx_hash: Optional[str] = None
+    quantity: Optional[int] = 1
+    quantity: Optional[int] = 1
 
 @app.get("/chips/{user_id}")
 def get_chips(user_id: int, name: str = "Player"):
@@ -157,16 +159,20 @@ async def buy_ticket(req: TicketRequest):
         return {"detail": "Competition not active"}
     if c["tickets_sold"] >= c["max_tickets"]:
         return {"detail": "Sold out!"}
-    ticket_number = c["tickets_sold"] + 1
-    supabase.table("tickets").insert({
-        "competition_id": req.competition_id,
-        "ticket_number": ticket_number,
-        "user_telegram_id": req.user_telegram_id,
-        "user_name": req.user_name,
-        "ton_address": req.ton_address,
-        "tx_hash": req.tx_hash
-    }).execute()
-    new_sold = c["tickets_sold"] + 1
+    quantity = req.quantity if hasattr(req, "quantity") and req.quantity else 1
+    ticket_numbers = []
+    for i in range(quantity):
+        ticket_number = c["tickets_sold"] + 1 + i
+        supabase.table("tickets").insert({
+            "competition_id": req.competition_id,
+            "ticket_number": ticket_number,
+            "user_telegram_id": req.user_telegram_id,
+            "user_name": req.user_name,
+            "ton_address": req.ton_address,
+            "tx_hash": req.tx_hash
+        }).execute()
+        ticket_numbers.append(ticket_number)
+    new_sold = c["tickets_sold"] + quantity
     supabase.table("competitions").update({"tickets_sold": new_sold}).eq("id", req.competition_id).execute()
     remaining = c["max_tickets"] - new_sold
     async with httpx.AsyncClient() as client:
