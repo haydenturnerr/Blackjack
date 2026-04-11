@@ -3,5 +3,6 @@ uvicorn
 httpx
 supabase
 python-telegram-bot
-tonsdk
 pytoniq-core
+
+tonutils

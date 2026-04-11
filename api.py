@@ -8,9 +8,8 @@ import base64
 import asyncio
 import random
 from supabase import create_client
-from tonsdk.contract.wallet import Wallets, WalletVersionEnum
-from tonsdk.utils import to_nano
-from tonsdk.crypto import mnemonic_to_wallet_key
+from tonutils.client import ToncenterV3Client
+from tonutils.wallet import WalletV5R1
 
 SUPABASE_URL = "https://ocqhzyjktrqmycafqlpw.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jcWh6eWprdHJxbXljYWZxbHB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1OTIzNDUsImV4cCI6MjA5MTE2ODM0NX0.J4I-EcmblNPUNeQnO1GJXBBm1gWt7de52pfpSEn4wYs"
@@ -34,43 +33,17 @@ async def send_ton_to_winner(winner_address: str, amount_ton: float):
             print("❌ TON_MNEMONIC not set")
             return False
         mnemonic = mnemonic_str.split()
-        # Convert raw address to friendly format if needed
-        if winner_address.startswith("0:"):
-            from tonsdk.utils import Address
-            winner_address = Address(winner_address).to_string(True, True, True)
         print(f"🚀 Starting payout: {amount_ton} TON to {winner_address}")
-        # Convert raw address to friendly format if needed
-        if winner_address.startswith("0:"):
-            try:
-                from tonsdk.utils import Address
-                winner_address = Address(winner_address).to_string(True, True, True)
-                print(f"📍 Converted address: {winner_address}")
-            except Exception as ae:
-                print(f"❌ Address conversion failed: {ae}")
-                return False
-        for version in [WalletVersionEnum.v4r2, WalletVersionEnum.v3r2]:
-            try:
-                print(f"🔑 Trying wallet version: {version}")
-                _, _, _, wallet = Wallets.from_mnemonics(mnemonic, version, 0)
-                wallet_address = wallet.address.to_string(True, True, True)
-                print(f"💳 Wallet address: {wallet_address}")
-                async with httpx.AsyncClient() as client:
-                    seqno_resp = await client.get(f"{TON_API}/getSeqno", params={"address": wallet_address})
-                    data = seqno_resp.json()
-                    print(f"📊 Seqno response: {data}")
-                    if "result" not in data:
-                        print(f"⚠️ No seqno result for {version}")
-                        continue
-                    seqno = data["result"]
-                    query = wallet.create_transfer_message(to_addr=winner_address, amount=to_nano(amount_ton, "ton"), seqno=seqno)
-                    boc = base64.b64encode(query["message"].to_boc(False)).decode()
-                    send_resp = await client.post(f"{TON_API}/sendBoc", json={"boc": boc})
-                    result = send_resp.json()
-                    print(f"✅ TON payout result: {result}")
-                    return True
-            except Exception as ve:
-                print(f"⚠️ Version {version} error: {ve}")
-                continue
+        client = ToncenterV3Client(is_testnet=False, rps=1, max_retries=3)
+        wallet, _, _, _ = WalletV5R1.from_mnemonic(client, mnemonic)
+        print(f"💳 Wallet address: {wallet.address}")
+        tx_hash = await wallet.transfer(
+            destination=winner_address,
+            amount=amount_ton,
+            body="🏆 TonCompetitions Prize!"
+        )
+        print(f"✅ TON payout sent! TX: {tx_hash}")
+        return True
     except Exception as e:
         print(f"❌ TON payout failed: {e}")
         return False
