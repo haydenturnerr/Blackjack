@@ -8,7 +8,7 @@ import base64
 import asyncio
 import random
 from supabase import create_client
-from tonutils.clients.http.toncenter.provider import ToncenterClient
+from tonutils.clients.http.toncenter import ToncenterClient
 from tonutils.contracts.wallet.versions.v5 import WalletV5R1
 
 SUPABASE_URL = "https://ocqhzyjktrqmycafqlpw.supabase.co"
