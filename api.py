@@ -207,6 +207,7 @@ async def buy_ticket(req: TicketRequest):
             f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
             json={"chat_id": "@blackjacktournamentChannel", "text": f"🎟️ Ticket #{ticket_number} sold to {req.user_name}!\n🏆 {c['name']}\n🎫 {remaining} tickets remaining!\n\nGet yours → t.me/blackjacktournamentbot"}
         )
+    print(f"🎫 Tickets sold: {new_sold} / {c["max_tickets"]}")
     if new_sold >= c["max_tickets"]:
         tickets = supabase.table("tickets").select("*").eq("competition_id", req.competition_id).execute()
         block_hash = hex(random.getrandbits(256))
@@ -228,6 +229,7 @@ async def buy_ticket(req: TicketRequest):
             "winner_name": winner["user_name"],
             "draw_block_hash": block_hash
         }).eq("id", req.competition_id).execute()
+        print(f"🎰 DRAW TRIGGERED! Prize: {c.get("prize_amount_ton", 100)} TON")
         prize_ton = c.get("prize_amount_ton", 100)
         payout_ok = await send_ton_to_winner(winner["ton_address"], prize_ton)
         payout_status = "✅ Prize sent automatically!" if payout_ok else "⚠️ Auto-payout failed — manual send required."
