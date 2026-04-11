@@ -205,6 +205,49 @@ async def buy_ticket(req: TicketRequest):
             )
     return {"ticket_number": ticket_number, "remaining": remaining, "total": c["max_tickets"]}
 
+class ReferralRequest(BaseModel):
+    referrer_telegram_id: str
+    referred_telegram_id: str
+    referred_name: str
+
+@app.post("/referral")
+async def add_referral(req: ReferralRequest):
+    # Check not already referred
+    existing = supabase.table("referrals").select("*").eq("referred_telegram_id", req.referred_telegram_id).execute()
+    if existing.data:
+        return {"status": "already referred"}
+    
+    # Get free competition
+    comp = supabase.table("competitions").select("*").eq("ticket_price_ton", 0).eq("status", "active").execute()
+    if not comp.data:
+        return {"status": "no free competition"}
+    c = comp.data[0]
+    
+    # Record referral
+    supabase.table("referrals").insert({
+        "referrer_telegram_id": req.referrer_telegram_id,
+        "referred_telegram_id": req.referred_telegram_id,
+        "competition_id": c["id"]
+    }).execute()
+    
+    # Count referrer tickets
+    refs = supabase.table("referrals").select("*").eq("referrer_telegram_id", req.referrer_telegram_id).execute()
+    ticket_count = len(refs.data)
+    
+    # Add ticket for referrer
+    ticket_number = c["tickets_sold"] + 1
+    supabase.table("tickets").insert({
+        "competition_id": c["id"],
+        "ticket_number": ticket_number,
+        "user_telegram_id": req.referrer_telegram_id,
+        "user_name": "Referral Entry",
+        "ton_address": "pending",
+        "tx_hash": "referral"
+    }).execute()
+    supabase.table("competitions").update({"tickets_sold": ticket_number}).eq("id", c["id"]).execute()
+    
+    return {"status": "ok", "ticket_number": ticket_number, "total_tickets": ticket_count}
+
 @app.get("/draws")
 def get_draws():
     res = supabase.table("draws").select("*").order("drawn_at", desc=True).limit(10).execute()
