@@ -40,7 +40,7 @@ async def send_ton_to_winner(winner_address: str, amount_ton: float):
             print(f"💳 Wallet address: {wallet.address}")
             tx_hash = await wallet.transfer(
                 destination=winner_address,
-                amount=amount_ton,
+                amount=int(amount_ton * 1e9),
                 body="🏆 TonCompetitions Prize!"
             )
             print(f"✅ TON payout sent! TX: {tx_hash}")
