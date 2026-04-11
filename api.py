@@ -179,7 +179,7 @@ async def buy_ticket(req: TicketRequest):
     async with httpx.AsyncClient() as client:
         await client.post(
             f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-            json={"chat_id": "@blackjacktournamentChannel", "text": f"🎟️ Ticket #{ticket_number} sold to {req.user_name}!\n🏆 {c['name']}\n🎫 {remaining} tickets remaining!\n\nGet yours → t.me/blackjacktournamentbot"}
+            json={"chat_id": "@TonCompetitionsChannel", "text": f"🎟️ Ticket #{ticket_number} sold to {req.user_name}!\n🏆 {c['name']}\n🎫 {remaining} tickets remaining!\n\nGet yours → t.me/TonCompetitions_bot/compete"}
         )
     print(f"🎫 Tickets sold: {new_sold} / {c["max_tickets"]}")
     if new_sold >= c["max_tickets"]:
@@ -210,7 +210,7 @@ async def buy_ticket(req: TicketRequest):
         async with httpx.AsyncClient() as client:
             await client.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json={"chat_id": "@blackjacktournamentChannel", "text": f"🎰 DRAW COMPLETE!\n🏆 {c['name']}\n🔢 Hash: {block_hash[:20]}...\n🎯 Winning Ticket #{winner['ticket_number']}\n🥳 WINNER: {winner['user_name']}!\n💰 Prize: {prize_ton} TON\n📤 {payout_status}\n🔍 Verify: tonviewer.com"}
+                json={"chat_id": "@TonCompetitionsChannel", "text": f"🎉 WE HAVE A WINNER! 🎉\n\n🏆 {c['name']}\n\n🥳 Congratulations to {winner['user_name']}!\n🎯 Winning Ticket: #{winner['ticket_number']}\n💰 Prize: {prize_ton} TON\n📤 {payout_status}\n\n🔢 Blockchain Hash: {block_hash[:20]}...\n🔍 Verify on tonviewer.com\n\n👇 Enter the next competition now!\nt.me/TonCompetitions_bot/compete"}
             )
     return {"ticket_number": ticket_number, "remaining": remaining, "total": c["max_tickets"]}
 
