@@ -34,16 +34,25 @@ async def send_ton_to_winner(winner_address: str, amount_ton: float):
             print("❌ TON_MNEMONIC not set")
             return False
         mnemonic = mnemonic_str.split()
-        _, _, _, wallet = Wallets.from_mnemonics(mnemonic, WalletVersionEnum.v4r2, 0)
-        wallet_address = wallet.address.to_string(True, True, True)
-        async with httpx.AsyncClient() as client:
-            seqno_resp = await client.get(f"{TON_API}/getSeqno", params={"address": wallet_address})
-            seqno = seqno_resp.json()["result"]
-            query = wallet.create_transfer_message(to_addr=winner_address, amount=to_nano(amount_ton, "ton"), seqno=seqno)
-            boc = base64.b64encode(query["message"].to_boc(False)).decode()
-            send_resp = await client.post(f"{TON_API}/sendBoc", json={"boc": boc})
-            print(f"✅ TON payout sent: {send_resp.json()}")
-            return True
+        for version in [WalletVersionEnum.v4r2, WalletVersionEnum.v3r2]:
+            try:
+                _, _, _, wallet = Wallets.from_mnemonics(mnemonic, version, 0)
+                wallet_address = wallet.address.to_string(True, True, True)
+                async with httpx.AsyncClient() as client:
+                    seqno_resp = await client.get(f"{TON_API}/getSeqno", params={"address": wallet_address})
+                    data = seqno_resp.json()
+                    if "result" not in data:
+                        continue
+                    seqno = data["result"]
+                    query = wallet.create_transfer_message(to_addr=winner_address, amount=to_nano(amount_ton, "ton"), seqno=seqno)
+                    boc = base64.b64encode(query["message"].to_boc(False)).decode()
+                    send_resp = await client.post(f"{TON_API}/sendBoc", json={"boc": boc})
+                    result = send_resp.json()
+                    print(f"✅ TON payout sent: {result}")
+                    return True
+            except Exception as ve:
+                print(f"⚠️ Version {version} error: {ve}")
+                continue
     except Exception as e:
         print(f"❌ TON payout failed: {e}")
         return False
