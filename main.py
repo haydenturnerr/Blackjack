@@ -102,6 +102,20 @@ async def paid(update, ctx):
 # ── TONCOMPETITIONS BOT ────────────────────────────────────────────────────────
 
 async def ton_start(update, ctx):
+    uid = str(update.effective_user.id)
+    name = update.effective_user.first_name or "Player"
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"https://api.telegram.org/bot{TON_TOKEN}/sendMessage",
+                json={
+                    "chat_id": "1283355111",
+                    "text": f"🆕 New user on TonCompetitions!\n👤 {name}\n🆔 {uid}"
+                }
+            )
+    except:
+        pass
+    
     await update.message.reply_text(
         text=(
             "🏆 *TonCompetitions*\n\n"
