@@ -218,7 +218,7 @@ async def buy_ticket(req: TicketRequest):
             "winner_name": winner["user_name"],
             "draw_block_hash": block_hash
         }).eq("id", req.competition_id).execute()
-        prize_ton = c.get("prize_ton", 100)
+        prize_ton = c.get("prize_amount_ton", 100)
         payout_ok = await send_ton_to_winner(winner["ton_address"], prize_ton)
         payout_status = "✅ Prize sent automatically!" if payout_ok else "⚠️ Auto-payout failed — manual send required."
         async with httpx.AsyncClient() as client:
